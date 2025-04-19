@@ -18,8 +18,9 @@ parameter Y_MAX = 479;
 wire refresh_tick;
 assign refresh_tick = ((y == 481) && (x == 0)) ? 1 : 0;   
 
-parameter lvl_t = 70;
-parameter lvl_b = 80;
+
+parameter lvl_t = 50;
+parameter lvl_b = 65;
 parameter lvl_4l= 520;
 parameter lvl_4r= 530;
 parameter lvl_3l= 540;
@@ -35,6 +36,17 @@ parameter Lane_2t= 122;
 parameter Lane_2b = 134;
 parameter Lane_3t= 137;
 parameter Lane_3b = 149;
+
+parameter Game_l = 200;
+parameter Game_t = 200;
+parameter Game_b = 385;
+parameter Game_r = 440;
+
+parameter name_t= 30;
+parameter name_b= 55;
+parameter name_l= 160;
+parameter name_r= 360;
+
 
 parameter breakL_1 = 98;
 parameter breakR_1 = 170;
@@ -59,9 +71,8 @@ parameter Y_WALL_L1 = 100;
 parameter Y_WALL_L2 = 105;
 parameter Y_PAD_T = 450;
 parameter Y_PAD_B = 454; 
-
 wire [9:0] X_PAD_r, X_PAD_l;
-parameter PAD_LEN = 80;
+parameter PAD_LEN = 60;
 
 reg [9:0] x_pad_reg, x_pad_next;
 parameter PAD_VEL = 3;    
@@ -74,9 +85,10 @@ wire [9:0] y_ball_next, x_ball_next;
 reg  [9:0] x_delta_reg, x_delta_next;
 reg  [9:0] y_delta_reg, y_delta_next;
 
+//LEVEL CHECK AND FLAG FOR EACH BRICKS 
 reg [17:0] flag_check;
-reg [3:0] level_check;
-reg [3:0] a;
+reg [1:0] level_check = 2'b00;
+reg [1:0] Status = 1'b0;
 wire flag_reset_0, flag_reset_1, flag_reset_2, flag_reset_3, flag_reset_4, flag_reset_5, flag_reset_6, flag_reset_7, flag_reset_8, flag_reset_9, flag_reset_10, flag_reset_11, flag_reset_12, flag_reset_13, flag_reset_14, flag_reset_15, flag_reset_16, flag_reset_17;
 
 
@@ -103,11 +115,11 @@ assign flag_reset_17 = (y_ball_t < Lane_1b)&& ( Lane_1b < y_ball_b) && (breakL_6
 
 wire level_0,level_1,level_2,level_3;
 wire level;
-assign level_0 = (lvl_4l <= x) && (x <= lvl_4r) && (y >= lvl_t) && (y <= lvl_b);
-assign level_1 = (lvl_3l <= x) && (x <= lvl_3r) && (y >= lvl_t) && (y <= lvl_b);
-assign level_2 = (lvl_2l <= x) && (x <= lvl_2r) && (y >= lvl_t) && (y <= lvl_b);
-assign level_3 = (lvl_1l <= x) && (x <= lvl_1r) && (y >= lvl_t) && (y <= lvl_b);
-assign level = ((Y_MAX - 2) <= y_ball_b ) && (X_WALL_L2 <= x_ball_l)&& (x_ball_r < X_WALL_R1 );
+assign level_0 = (lvl_4l <= x) && (x <= lvl_4r) && (y >= lvl_t) && (y <= lvl_b) && (level_check == 2'b00);
+assign level_1 = (lvl_3l <= x) && (x <= lvl_3r) && (y >= lvl_t) && (y <= lvl_b) && ((level_check == 2'b01)  || (level_check == 2'b00) );
+assign level_2 = (lvl_2l <= x) && (x <= lvl_2r) && (y >= lvl_t) && (y <= lvl_b) && ((level_check == 2'b01) || (level_check == 2'b00) || (level_check == 2'b10));
+assign level_3 = (lvl_1l <= x) && (x <= lvl_1r) && (y >= lvl_t) && (y <= lvl_b) && ((level_check == 2'b11) || (level_check == 2'b00) || (level_check == 2'b01) || (level_check == 2'b10) );
+assign level = ((Y_MAX - 2) <= y_ball_b ) && (X_WALL_L2 <= x_ball_l)&& (x_ball_r < X_WALL_R1 ); 
 
 parameter B1 = 1;
 parameter B0 = -1;    
@@ -120,13 +132,14 @@ wire rom_bit;
 always @(posedge clk or posedge reset)
    if(reset) begin
        x_pad_reg <= 95;
-       x_ball_reg <= X_MAX;
+       x_ball_reg <= X_MAX/2;
        y_ball_reg <= Y_MAX/2;
        x_delta_reg <= 10'h001;
        y_delta_reg <= 10'h001;
        flag_check <= 18'h3FFFF;
-       level_check <= 4'b0000;
-       a<= 4'b0001;
+       level_check[1:0] <= 2'b00;
+        Status <= 1'b0;
+
 end  
 else begin
     x_pad_reg <= x_pad_next;
@@ -134,10 +147,14 @@ else begin
     y_ball_reg <= y_ball_next;
     x_delta_reg <= x_delta_next;
     y_delta_reg <= y_delta_next;
-//    if(level) begin
-//       a <=  a << 1;
-//      level_check <= level_check + a; end
-      
+    
+  if(level) begin
+    level_check <= level_check + 1 ;
+     end
+   if (level_check == 2'b11) begin
+         Status <= 1'b1;
+      end  
+    
     if (flag_reset_0) 
     flag_check[0] <= 0;
     if (flag_reset_1) 
@@ -153,7 +170,7 @@ else begin
      if (flag_reset_6) 
     flag_check[6] <= 0;
     if (flag_reset_7) 
-      flag_check[10] <= 0;
+      flag_check[7] <= 0;
     if (flag_reset_8) 
     flag_check[8] <= 0; 
     if (flag_reset_9) 
@@ -164,20 +181,21 @@ else begin
     flag_check[11] <= 0;
      if (flag_reset_12) 
     flag_check[12] <= 0;
-    if (flag_reset_13) 
+    if (flag_reset_13) //11|1111|1111|1111|1111
      flag_check <= 18'h3DFFF;
     if (flag_reset_14) 
     flag_check[14] <= 0; 
     if (flag_reset_15) 
        flag_check[15] <= 0;
       if (flag_reset_16) 
-   flag_check <= 18'h1FFFF;
+   flag_check <= 18'h2FFFF;//10|1111|1111|1111|1111
       if (flag_reset_17) 
     flag_check[17] <= 0;
 
     
 end   
 
+///ball rom data for circular ball////////
 always @(*)
    case(rom_addr)
             3'b000 :    rom_data = 8'b00111100; 
@@ -197,7 +215,7 @@ wire wall_on, pad_on, sq_ball_on, ball_on,
      break6, break7, break8, break9, break10, break11, 
      break12, break13, break14, break15, break16, break17;
 
- wire [11:0] wall_rgb, pad_rgb, ball_rgb, bg_rgb, break_rgb, bg_red;
+ wire [11:0] wall_rgb, pad_rgb, ball_rgb, bg_rgb, break_rgb, bg_red, bg_red2;
 
 // reg [1:0] delay_counter;
 assign break0  = ((breakL_1 <= x) && (x <= breakR_1) && (y <= Lane_3b) && (Lane_3t <= y));
@@ -228,11 +246,11 @@ assign break17 = ((breakL_6 <= x) && (x <= breakR_6) && (y <= Lane_1b) && (Lane_
 assign wall_on = (((X_WALL_L1 <= x) && (x <= X_WALL_L2) && (Y_WALL_L1 <= y)) || (( X_WALL_R1 <=x)&&( x<= X_WALL_R2 ) && (Y_WALL_L1 <= y)) || ((y <= Y_WALL_L2) && ( Y_WALL_L1 <= y ) && (X_WALL_L1 <= x) &&(x <= X_WALL_R2))) ? 1 : 0;
 assign wall_rgb = 12'hAAF;      
 assign pad_rgb = 12'hFFF;  
-assign break_rgb = 12'hFFF;     
+assign break_rgb = 12'hFDF;     
 assign ball_rgb = 12'h0F0;      
 assign bg_rgb = 12'h111; 
-assign bg_red = 12'hF00;    
-assign bg_red2 = 12'hFF0;    
+assign bg_red = 12'h00F;    
+assign bg_red2 = 12'hAA0;    
     
 assign X_PAD_l = x_pad_reg;
 assign X_PAD_r = X_PAD_l + PAD_LEN -1;
@@ -268,8 +286,39 @@ assign pad_on = ( Y_PAD_T <=y ) && (y <= Y_PAD_B ) && ( x<= X_PAD_r ) && ( X_PAD
    assign y_ball_next =  reset ? (Y_MAX / 2): (refresh_tick) ? y_ball_reg + y_delta_reg : y_ball_reg;   
    
     
+    //Game over screen ///////////////////////////////////////////////////
+    
+    wire [4:0] row1,row2; 
+    wire [7:0] col1,col2;
+    wire [11:0] rom_data1,rom_data2;
+    wire gameover_on,name_on;
+    
+    assign col1 = x - Game_l;
+    assign row1 = y - Game_t;
+    
+    assign row2 = y-name_t;
+    assign col2 = x-name_l;
+    
+    name_rom name(.clk(clk), .row(row2), .col(col2), .color_data(rom_data2));
+    gameover game( .clk(clk), .row(row1), .col(col1), .color_data(rom_data1) );
+    
+    assign gameover_on = (Game_l <= x) && (x <=Game_r) &&
+                     (Game_t <= y) && (y <= Game_b);  
+    assign name_on = (name_l <= x) && (x <=name_r) &&
+                     (name_t <= y) && (y <= name_b);                 
+    
+    
+    
+ ////////////////////////////////////////////////////////////////
+    
+    
     
   always @* begin
+//  if (Status) begin
+//        x_delta_next = 0;
+//        y_delta_next =0; end
+        
+//        else 
         x_delta_next = x_delta_reg;
         y_delta_next = y_delta_reg;
         
@@ -281,25 +330,20 @@ assign pad_on = ( Y_PAD_T <=y ) && (y <= Y_PAD_B ) && ( x<= X_PAD_r ) && ( X_PAD
                              
             
         else if(  X_WALL_R2 < x_ball_r)                         
-             x_delta_next = B0; 
-             
-             
+             x_delta_next = B0;           
              
         else if( ((Y_MAX - 2) <= y_ball_b ) && (X_WALL_L2 <= x_ball_l)&& (x_ball_r < X_WALL_R1 )  )    
         begin                   
 //            y_ball_reg <= 10'd185 ;
 //            x_ball_reg <= 10'd300;  
-             y_delta_next = B0;
-//             a <=  a << 1;
-//             level_check <= level_check + a ;
-            
-             
+             y_delta_next = B0;            
         end
         
         else if ( ( X_PAD_l <= x_ball_r) && ( x_ball_l <= X_PAD_r ) && ( Y_PAD_T <= y_ball_b))
               y_delta_next = B0;
               
-              
+ 
+            
 else if(flag_reset_0)   
 begin
     y_delta_next = B1;
@@ -398,64 +442,80 @@ end
     
     
    always @*
-        if(~video_on)
-            rgb = 12'h000;     
-        else
-        
-         if(wall_on)
+    if(~video_on)
+            rgb = 12'h000;    
+             
+     else if(Status && level_check == 2'b11)
+           begin
+           if(gameover_on )
+            rgb = rom_data1;
+            else
+            rgb= 12'h000;
+            end
+             
+       else if(wall_on)
            rgb = wall_rgb;    
-            else if(pad_on)
+         else if(pad_on)
                 rgb = pad_rgb;     
-            else if(ball_on)
+         else if(name_on)
+                rgb = rom_data2;
+         else if(ball_on)
                 rgb = ball_rgb;   
          else if( break0 && flag_check[0])  
-            rgb = break_rgb;
+                rgb = break_rgb;
          else if( break1 && flag_check[1])  
               rgb = break_rgb;
-            else if( break2 && flag_check[2])  
+         else if( break2 && flag_check[2])  
             rgb = break_rgb;
-                else if( break3 && flag_check[3])  
-                             rgb = break_rgb;
-                    else if( break4 && flag_check[4])  
+         else if( break3 && flag_check[3])  
+                 rgb = break_rgb;
+         else if( break4 && flag_check[4])  
                             rgb = break_rgb;
-                  else if( break5 && flag_check[5])  
+         else if( break5 && flag_check[5])  
                                rgb = break_rgb;
-                       else if( break6 && flag_check[6])  
+         else if( break6 && flag_check[6])  
                              rgb = break_rgb;
-                      else if( break7 && flag_check[7])  
-                          rgb =break_rgb;
-                     else if( break8 && flag_check[8])  
-                             rgb = break_rgb;
-                       else if( break9 && flag_check[9])  
-                           rgb = break_rgb;
-                  else if( break10 && flag_check[10])  
+         else if( break7 && flag_check[7])  
                           rgb = break_rgb;
-                   else if( break11 && flag_check[11])  
+         else if( break8 && flag_check[8])  
                              rgb = break_rgb;
-                   else if( break12 && flag_check[12])  
+         else if( break9 && flag_check[9])  
+                           rgb = break_rgb;
+         else if( break10 && flag_check[10])  
+                          rgb = break_rgb;
+         else if( break11 && flag_check[11])  
+                             rgb = break_rgb;
+         else if( break12 && flag_check[12])  
                    rgb = break_rgb;
-               else if( break13 && flag_check[13])  
-                      rgb = bg_red;
-            else if( break14 && flag_check[14])  
+         else if( break13 && flag_check[13])  
+                      rgb = bg_red2;
+         else if( break14 && flag_check[14])  
                    rgb = break_rgb;
-            else if( break15 && flag_check[15])  
+         else if( break15 && flag_check[15])  
                  rgb = break_rgb;
          else if( break16 && flag_check[16])  
-               rgb = bg_red;
-          else if( break17 && flag_check[17])  
+               rgb = bg_red2;
+         else if( break17 && flag_check[17])  
              rgb = break_rgb;
              
-          else if (level_0 && ~(level_check[0]))
+//         else if (level_check == 3'b000)
+//         begin 
+      else if (level_0 )
            rgb = bg_red;
-             else if (level_1 && ~(level_check[1]))
+         else if (level_1)
            rgb = bg_red;
-             else if (level_2 && ~(level_check[2]))
+             else if (level_2)
            rgb = bg_red;
-             else if (level_3 && ~(level_check[3]))
-           rgb = bg_red;
-            else
-                rgb = bg_rgb; 
+//             else if (level_3)
+//           rgb = bg_red;
+//         end
+       
+
+           
+     
+       else
+             rgb = bg_rgb; 
    
    
-      
+     
 endmodule
